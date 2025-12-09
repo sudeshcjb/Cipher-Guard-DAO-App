@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { AppConfig, AuditLog, EncryptedFile, Share } from './types';
 import { DEFAULT_CONFIG, MAX_SHARES, MIN_SHARES } from './constants';
 import * as CryptoService from './services/cryptoService';
-import { Card, Button, Input, Badge } from './components/SharedUI';
+import { Card, Button, Input, Badge, Modal } from './components/SharedUI';
 import { AuditLogView } from './components/AuditLogView';
 import { TechnicalNote } from './components/TechnicalNote';
 
@@ -10,8 +11,28 @@ enum Tab {
   OWNER = 'OWNER',
   RECOVERY = 'RECOVERY',
   MANAGEMENT = 'MANAGEMENT',
-  AUDIT = 'AUDIT'
+  AUDIT = 'AUDIT',
+  TECHNICAL = 'TECHNICAL'
 }
+
+// Helper component for QR Generation using the window.QRious library
+const QRCodeCanvas: React.FC<{ value: string }> = ({ value }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (canvasRef.current && (window as any).QRious) {
+      // @ts-ignore
+      new window.QRious({
+        element: canvasRef.current,
+        value: value,
+        size: 150,
+        background: '#0a0a0f', // cyber-900
+        foreground: '#00ff9d', // cyber-neon
+        level: 'H'
+      });
+    }
+  }, [value]);
+  return <canvas ref={canvasRef} className="rounded border border-cyber-600" />;
+};
 
 const App: React.FC = () => {
   // State
@@ -24,6 +45,7 @@ const App: React.FC = () => {
   const [isEncrypting, setIsEncrypting] = useState(false);
   const [generatedShares, setGeneratedShares] = useState<Share[]>([]);
   const [encryptedFile, setEncryptedFile] = useState<EncryptedFile | null>(null);
+  const [isDistributionModalOpen, setIsDistributionModalOpen] = useState(false);
   
   // Recovery State
   const [recoveryShares, setRecoveryShares] = useState<Record<number, string>>({});
@@ -95,7 +117,9 @@ const App: React.FC = () => {
       setEncryptedFile(encryptedFileObj);
       setGeneratedShares(shares);
       
-      addLog('UPLOAD', `File encrypted. ${config.totalShares} key shares generated.`, 'Owner', hash);
+      addLog('UPLOAD', `File uploaded & encrypted. Original SHA-256 hash recorded on ledger. Generated ${config.totalShares} shares.`, 'Owner', hash);
+      // Auto open distribution center on success
+      setIsDistributionModalOpen(true);
 
     } catch (err) {
       console.error(err);
@@ -118,20 +142,18 @@ const App: React.FC = () => {
     const sharesList = (Object.values(recoveryShares) as string[])
       .filter(s => s.trim() !== "")
       .map(s => {
-        // Simple parse to validate format if needed, for now trusting raw input matches Share.data
-        // We need to reconstruct Share object. 
-        // Our Share.data is "x-y". The user inputs the whole string.
         return { id: 0, data: s.trim() }; 
       });
 
     if (sharesList.length < config.threshold) {
       setRecoveryError(`Need at least ${config.threshold} shares. Provided: ${sharesList.length}`);
+      addLog('RECOVERY_FAILED', `Recovery rejected. Insufficient shares provided (${sharesList.length}/${config.threshold}).`, 'ConsensusWrapper');
       return;
     }
 
     setIsRecovering(true);
     setRecoveryError(null);
-    addLog('RECOVERY_ATTEMPT', `Attempting reconstruction with ${sharesList.length} shares.`, 'ConsensusWrapper');
+    addLog('RECOVERY_ATTEMPT', `Initiating reconstruction consensus with ${sharesList.length} shares.`, 'ConsensusWrapper');
 
     try {
       // 1. Reconstruct Key
@@ -151,12 +173,12 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       setRecoveredFileUrl(url);
       
-      addLog('RECOVERY_SUCCESS', 'Key reconstructed and file decrypted successfully.', 'ConsensusWrapper', encryptedFile.hash);
+      addLog('RECOVERY_SUCCESS', `Consensus reached. File decrypted successfully using ${sharesList.length} shares.`, 'ConsensusWrapper', encryptedFile.hash);
 
     } catch (err) {
       console.error(err);
       setRecoveryError("Decryption failed. Shares might be invalid or incorrect key reconstructed.");
-      addLog('RECOVERY_ATTEMPT', 'Reconstruction failed: Invalid key derived.', 'System');
+      addLog('RECOVERY_FAILED', `Recovery failed. The provided ${sharesList.length} shares produced an invalid key.`, 'System');
     } finally {
       setIsRecovering(false);
     }
@@ -182,7 +204,7 @@ const App: React.FC = () => {
 
       {/* Nav */}
       <nav className="flex space-x-1 bg-cyber-800 p-1 rounded-lg mb-8 w-fit overflow-x-auto">
-        {[Tab.OWNER, Tab.RECOVERY, Tab.MANAGEMENT, Tab.AUDIT].map((tab) => (
+        {[Tab.OWNER, Tab.RECOVERY, Tab.MANAGEMENT, Tab.AUDIT, Tab.TECHNICAL].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -236,30 +258,52 @@ const App: React.FC = () => {
                   )}
                </Card>
 
-               {generatedShares.length > 0 && (
-                 <Card title="Generated Key Shares (Distribute These)">
-                   <div className="bg-yellow-900/20 border border-yellow-700/50 p-4 rounded mb-4 text-yellow-200 text-sm">
-                     <strong>Warning:</strong> You must distribute these shares to different parties. Do not store them together. The original key is discarded after this step.
+               {encryptedFile && (
+                <Card title="Encryption Manifest" className="border-t border-cyber-neon">
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="bg-cyber-900 p-3 rounded border border-cyber-700">
+                         <span className="block text-xs text-cyber-500 uppercase tracking-widest mb-1">File Name</span>
+                         <span className="text-cyber-100 text-sm font-medium truncate block" title={encryptedFile.name}>{encryptedFile.name}</span>
+                      </div>
+                      <div className="bg-cyber-900 p-3 rounded border border-cyber-700">
+                         <span className="block text-xs text-cyber-500 uppercase tracking-widest mb-1">Type</span>
+                         <span className="text-cyber-100 text-xs font-mono truncate block" title={encryptedFile.type}>{encryptedFile.type || 'N/A'}</span>
+                      </div>
+                      <div className="bg-cyber-900 p-3 rounded border border-cyber-700">
+                         <span className="block text-xs text-cyber-500 uppercase tracking-widest mb-1">Size</span>
+                         <span className="text-cyber-100 text-sm font-mono">{(encryptedFile.size / 1024).toFixed(2)} KB</span>
+                      </div>
+                      <div className="bg-cyber-900 p-3 rounded border border-cyber-700">
+                         <span className="block text-xs text-cyber-500 uppercase tracking-widest mb-1">Scheme</span>
+                         <span className="text-cyber-neon text-sm font-mono font-bold">N={config.totalShares}</span>
+                         <span className="text-cyber-400 mx-1">/</span>
+                         <span className="text-cyber-info text-sm font-mono font-bold">K={config.threshold}</span>
+                      </div>
                    </div>
-                   <div className="space-y-3">
-                     {generatedShares.map((share) => (
+                   
+                   <div className="bg-cyber-900 p-3 rounded border border-cyber-700">
+                      <span className="block text-xs text-cyber-500 uppercase tracking-widest mb-1">SHA-256 Hash (Integrity Check)</span>
+                      <span className="text-cyber-300 text-xs font-mono break-all">{encryptedFile.hash}</span>
+                   </div>
+                </Card>
+               )}
+
+               {generatedShares.length > 0 && (
+                 <Card title="Key Distribution">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-cyber-300 text-sm">
+                        <span className="text-cyber-neon font-bold">{generatedShares.length} shares</span> generated. Distribute these to trustees.
+                      </p>
+                      <Button variant="primary" onClick={() => setIsDistributionModalOpen(true)}>
+                        Open Distribution Hub
+                      </Button>
+                    </div>
+                   <div className="space-y-3 opacity-50 pointer-events-none filter blur-[1px]">
+                     {/* Preview of shares (disabled state to encourage using the hub) */}
+                     {generatedShares.slice(0, 3).map((share) => (
                        <div key={share.id} className="flex items-center space-x-2">
                          <span className="bg-cyber-900 text-cyber-400 px-3 py-2 rounded border border-cyber-700 font-mono text-xs w-12 text-center">#{share.id}</span>
-                         <input 
-                            readOnly 
-                            value={share.data} 
-                            className="flex-1 bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-xs font-mono text-cyber-neon focus:outline-none"
-                            onClick={(e) => e.currentTarget.select()}
-                         />
-                         <Button variant="ghost" onClick={() => navigator.clipboard.writeText(share.data)}>Copy</Button>
-                         <Button 
-                           variant="secondary" 
-                           onClick={() => handleDownloadShare(share)} 
-                           title="Download .share file"
-                           className="px-3"
-                         >
-                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                         </Button>
+                         <input readOnly value="************************" className="flex-1 bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-xs font-mono text-cyber-500" />
                        </div>
                      ))}
                    </div>
@@ -397,11 +441,17 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {/* TECHNICAL TAB */}
+          {activeTab === Tab.TECHNICAL && (
+            <div className="animate-fade-in">
+              <TechnicalNote />
+            </div>
+          )}
+
         </div>
 
         {/* Right Column: Info & Tech Note */}
         <div className="lg:col-span-1 space-y-8">
-           <TechnicalNote />
            
            <Card title="System Status" className="border border-cyber-600">
               <div className="space-y-4 text-sm font-mono">
@@ -426,6 +476,83 @@ const App: React.FC = () => {
         </div>
 
       </main>
+
+      {/* Distribution Modal */}
+      <Modal 
+        isOpen={isDistributionModalOpen} 
+        onClose={() => setIsDistributionModalOpen(false)} 
+        title="Share Distribution Hub"
+      >
+        <div className="space-y-8">
+           <div className="bg-cyber-800 p-4 rounded border-l-4 border-cyber-info text-sm text-cyber-200">
+             <p className="font-bold text-cyber-info mb-1">Security Protocol:</p>
+             <p>Distribute each share to a unique trustee via a secure channel. 
+             Do not send multiple shares to the same person. 
+             The QR codes are generated locally in your browser.</p>
+           </div>
+
+           <div className="grid grid-cols-1 gap-8">
+             {generatedShares.map((share, index) => (
+               <div key={share.id} className="bg-cyber-900 border border-cyber-700 rounded-lg p-6 flex flex-col md:flex-row gap-6 hover:border-cyber-500 transition-colors">
+                  
+                  {/* Visual QR Side */}
+                  <div className="flex flex-col items-center space-y-2 min-w-[150px]">
+                    <div className="bg-white p-2 rounded">
+                       <QRCodeCanvas value={share.data} />
+                    </div>
+                    <span className="text-xs text-cyber-500 font-mono uppercase tracking-widest">Trustee #{share.id}</span>
+                  </div>
+
+                  {/* Actions Side */}
+                  <div className="flex-1 space-y-4">
+                     <div className="flex items-center justify-between">
+                        <h4 className="text-cyber-neon font-bold text-lg">Share #{share.id}</h4>
+                        <Badge color="blue">UNCLAIMED</Badge>
+                     </div>
+                     
+                     <div className="relative">
+                        <label className="text-xs text-cyber-400 uppercase font-mono">Raw Share Data</label>
+                        <div className="flex mt-1">
+                          <input 
+                            readOnly 
+                            value={share.data} 
+                            className="w-full bg-cyber-800 border border-cyber-600 rounded-l px-3 py-2 text-xs font-mono text-cyber-300 focus:outline-none"
+                          />
+                          <button 
+                            onClick={() => navigator.clipboard.writeText(share.data)}
+                            className="bg-cyber-700 hover:bg-cyber-600 border border-l-0 border-cyber-600 rounded-r px-3 text-cyber-200"
+                            title="Copy to Clipboard"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                          </button>
+                        </div>
+                     </div>
+
+                     <div className="flex flex-wrap gap-2">
+                        <Button 
+                           variant="secondary" 
+                           className="text-xs py-1"
+                           onClick={() => handleDownloadShare(share)}
+                        >
+                           <span className="mr-2">⬇</span> Download .share
+                        </Button>
+                        <a 
+                          href={`mailto:?subject=CipherGuard Key Share #${share.id}&body=Here is your key share for the DAO recovery process:%0D%0A%0D%0A${share.data}%0D%0A%0D%0APlease store this securely.`}
+                          className="bg-cyber-600 text-cyber-100 hover:bg-cyber-500 border border-cyber-500 inline-flex items-center justify-center px-4 py-1 rounded font-medium text-xs uppercase tracking-wider transition-all"
+                        >
+                           <span className="mr-2">✉</span> Email Trustee
+                        </a>
+                     </div>
+                  </div>
+               </div>
+             ))}
+           </div>
+           
+           <div className="text-center pt-4">
+             <Button variant="ghost" onClick={() => setIsDistributionModalOpen(false)}>Close Distribution Hub</Button>
+           </div>
+        </div>
+      </Modal>
     </div>
   );
 };

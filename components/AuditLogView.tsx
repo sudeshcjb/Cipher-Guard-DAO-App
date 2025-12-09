@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AuditLog } from '../types';
 import { Badge } from './SharedUI';
@@ -21,6 +22,7 @@ export const AuditLogView: React.FC<Props> = ({ logs }) => {
             <div className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-2 border-cyber-900 ${
               log.action === 'UPLOAD' ? 'bg-cyber-neon' : 
               log.action === 'RECOVERY_SUCCESS' ? 'bg-cyber-info' : 
+              log.action === 'RECOVERY_FAILED' ? 'bg-cyber-alert' :
               log.action === 'RECOVERY_ATTEMPT' ? 'bg-yellow-500' :
               'bg-cyber-400'
             }`}></div>
@@ -35,11 +37,15 @@ export const AuditLogView: React.FC<Props> = ({ logs }) => {
                 <span className={`font-bold text-sm ${
                    log.action === 'UPLOAD' ? 'text-cyber-neon' : 
                    log.action === 'RECOVERY_SUCCESS' ? 'text-cyber-info' : 
+                   log.action === 'RECOVERY_FAILED' ? 'text-cyber-alert' :
                    'text-cyber-200'
                 }`}>
                   {log.action}
                 </span>
-                <Badge color={log.action === 'RECOVERY_ATTEMPT' ? 'red' : 'blue'}>{log.actor}</Badge>
+                <Badge color={
+                  log.action === 'RECOVERY_FAILED' ? 'red' : 
+                  log.action === 'RECOVERY_ATTEMPT' ? 'red' : 'blue'
+                }>{log.actor}</Badge>
               </div>
               
               <p className="text-sm text-cyber-300 mb-2">{log.details}</p>

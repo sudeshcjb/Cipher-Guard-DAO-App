@@ -1,3 +1,4 @@
+
 export interface Share {
   id: number;
   data: string; // Hex string of the share (x, y combined or just y if x is implicit, but we'll be explicit: "x-y")
@@ -15,7 +16,7 @@ export interface EncryptedFile {
 export interface AuditLog {
   id: string;
   timestamp: number;
-  action: 'UPLOAD' | 'DISTRIBUTE_SHARES' | 'RECOVERY_ATTEMPT' | 'RECOVERY_SUCCESS' | 'CONFIG_CHANGE';
+  action: 'UPLOAD' | 'DISTRIBUTE_SHARES' | 'RECOVERY_ATTEMPT' | 'RECOVERY_SUCCESS' | 'RECOVERY_FAILED' | 'CONFIG_CHANGE';
   actor: string;
   details: string;
   fileHash?: string;
