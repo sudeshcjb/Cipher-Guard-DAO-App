@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CipherGuard DAO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              cyber: {
+                900: '#0a0a0f',
+                800: '#13131f',
+                700: '#1c1c2e',
+                600: '#2a2a40',
+                500: '#3e3e5e',
+                400: '#5c5c8a',
+                300: '#8585ad',
+                200: '#adadd6',
+                100: '#d6d6f5',
+                50: '#f0f0fa',
+                neon: '#00ff9d',
+                alert: '#ff3366',
+                info: '#00ccff'
+              }
+            },
+            fontFamily: {
+              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/"
+  }
+}
+</script>
+</head>
+  <body class="bg-cyber-900 text-gray-200 antialiased overflow-y-scroll">
+    <div id="root"></div>
+  </body>
+</html>

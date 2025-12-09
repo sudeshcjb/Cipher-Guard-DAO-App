@@ -1,0 +1,5 @@
+{
+  "name": "CipherGuard DAO - Advancement",
+  "description": "A decentralized key recovery service using Shamir's Secret Sharing and AES-256-GCM encryption. Securely split file access among multiple trusted parties with an immutable audit trail.",
+  "requestFramePermissions": []
+}
